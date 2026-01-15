@@ -41,24 +41,45 @@ type Report struct {
 var db *sql.DB
 
 func main() {
-	// 1. Ensure Upload Directory Exists
+	// 1. Setup Environment Variables
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	dsn := os.Getenv("DSN")
+	if dsn == "" {
+		dsn = "root:@tcp(127.0.0.1:3306)/go_crud" // Default Local
+	}
+
+	// 2. Ensure Upload Directory Exists
 	if _, err := os.Stat(UploadDir); os.IsNotExist(err) {
 		os.Mkdir(UploadDir, 0755)
 	}
 
-	// 2. Connect to MySQL
+	// 3. Database Connection
 	var err error
-	db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/go_crud")
+	db, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	// Wait and retry for DB connection (Cloud databases can be slow to wake up)
+	for i := 0; i < 5; i++ {
+		if err := db.Ping(); err == nil {
+			break
+		}
+		log.Println("Waiting for database...", err)
+		time.Sleep(2 * time.Second)
+	}
+
 	if err := db.Ping(); err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
-	fmt.Println("Connected to MySQL!")
+	fmt.Println("Connected to Database!")
 
-	// 3. Define Routes
+	// 4. Define Routes
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/login", loginPageHandler) // Admin Login Page
 
@@ -80,8 +101,8 @@ func main() {
 
 	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(UploadDir))))
 
-	fmt.Println("Server running at http://localhost:8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	fmt.Println("Server running at port " + port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
 }
