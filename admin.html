@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Admin</title>
+    <!-- Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #f1f5f9;
+        }
+    </style>
+</head>
+
+<body class="text-slate-800">
+
+    <div id="app" class="min-h-screen flex flex-col md:flex-row">
+
+        <!-- Sidebar / Mobile Header -->
+        <aside
+            class="bg-slate-900 text-white p-4 md:w-64 md:h-screen flex justify-between items-center md:block flex-shrink-0">
+            <h1 class="text-xl font-bold flex items-center gap-2"><i class="fas fa-recycle text-green-400"></i>
+                WastePortal</h1>
+            <div class="md:hidden">
+                <button @click="logout" class="text-sm bg-slate-700 px-3 py-1 rounded">Logout</button>
+            </div>
+            <nav class="hidden md:block mt-8 space-y-2">
+                <a href="/admin" class="block py-2 px-4 bg-slate-800 border-l-4 border-green-500">Dashboard</a>
+                <button @click="logout" class="w-full text-left py-2 px-4 hover:bg-slate-800">Logout</button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+            <div class="max-w-6xl mx-auto">
+
+                <header class="mb-8 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold">Ringkasan Laporan</h2>
+                        <p class="text-slate-500 text-sm">Update data real-time</p>
+                    </div>
+                    <div class="hidden md:block">
+                        <span
+                            class="bg-white px-4 py-2 rounded-full shadow-sm text-sm font-semibold text-slate-600">Admin</span>
+                    </div>
+                </header>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                        <div class="text-slate-400 text-xs uppercase font-bold">Total</div>
+                        <div class="text-2xl font-bold">{{ reports.length }}</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500">
+                        <div class="text-slate-400 text-xs uppercase font-bold">Organik</div>
+                        <div class="text-2xl font-bold text-green-600">{{ cntOrganic }}</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                        <div class="text-slate-400 text-xs uppercase font-bold">Anorganik</div>
+                        <div class="text-2xl font-bold text-yellow-600">{{ cntInorganic }}</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-red-500">
+                        <div class="text-slate-400 text-xs uppercase font-bold">Bahaya (B3)</div>
+                        <div class="text-2xl font-bold text-red-600">{{ cntB3 }}</div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                    <!-- Pie Chart -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm lg:col-span-1">
+                        <h3 class="font-bold mb-4 text-center">Sebaran Sampah</h3>
+                        <div class="relative h-48">
+                            <canvas id="wasteChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- Simple Status or Info -->
+                    <div
+                        class="bg-gradient-to-br from-green-500 to-emerald-700 text-white p-6 rounded-xl shadow-lg lg:col-span-2 flex flex-col justify-center items-start">
+                        <h3 class="text-2xl font-bold mb-2">Pantau Kebersihan!</h3>
+                        <p class="opacity-90 max-w-md">Gunakan dashboard ini untuk memantau titik sampah. Segera tindak
+                            lanjuti laporan berstatus "New".</p>
+                    </div>
+                </div>
+
+                <!-- Reports List (Responsive: Table on Desktop, Cards on Mobile) -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-100 font-bold">Daftar Laporan Terbaru</div>
+
+                    <!-- Desktop Table -->
+                    <div class="hidden md:block overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-slate-500 uppercase">
+                                <tr>
+                                    <th class="px-6 py-3">ID</th>
+                                    <th class="px-6 py-3">Pelapor</th>
+                                    <th class="px-6 py-3">Kategori</th>
+                                    <th class="px-6 py-3">Status</th>
+                                    <th class="px-6 py-3">Waktu</th>
+                                    <th class="px-6 py-3 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="r in reports" :key="r.id" class="hover:bg-slate-50 transition">
+                                    <td class="px-6 py-4 font-mono">#{{ r.id }}</td>
+                                    <td class="px-6 py-4">
+                                        <div class="font-semibold">{{ r.reporter_name }}</div>
+                                        <div class="text-xs text-slate-400">{{ r.whatsapp }}</div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <span class="px-2 py-1 rounded text-xs font-bold"
+                                            :class="badgeColor(r.waste_category)">
+                                            {{ r.waste_category }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <span class="px-2 py-1 rounded-full text-xs font-bold lowercase border"
+                                            :class="statusColor(r.status)">
+                                            {{ r.status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-500">{{ formatDate(r.created_at) }}</td>
+                                    <td class="px-6 py-4 text-right">
+                                        <a :href="'/admin/detail?id=' + r.id"
+                                            class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded hover:bg-indigo-100 font-semibold text-xs">Detail</a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Mobile Cards -->
+                    <div class="md:hidden divide-y divide-slate-100">
+                        <div v-for="r in reports" :key="r.id" class="p-4 flex gap-4 items-start"
+                            @click="goToDetail(r.id)">
+                            <img :src="r.image_path" class="w-20 h-20 rounded-lg object-cover bg-slate-200">
+                            <div class="flex-1">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-xs font-bold text-slate-400">#{{ r.id }}</span>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full border"
+                                        :class="statusColor(r.status)">{{ r.status }}</span>
+                                </div>
+                                <h4 class="font-bold text-slate-800">{{ r.reporter_name }}</h4>
+                                <p class="text-xs text-slate-500 mb-2">{{ formatDate(r.created_at) }}</p>
+                                <span class="px-2 py-1 rounded text-[10px] font-bold"
+                                    :class="badgeColor(r.waste_category)">
+                                    {{ r.waste_category }}
+                                </span>
+                            </div>
+                            <i class="fas fa-chevron-right text-slate-300 self-center"></i>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const reports = ref([]);
+                let chartInstance = null;
+
+                // Stats
+                const cntOrganic = computed(() => reports.value.filter(r => r.waste_category.toLowerCase().includes('organik')).length);
+                const cntInorganic = computed(() => reports.value.filter(r => r.waste_category.toLowerCase().includes('anorganik')).length);
+                const cntB3 = computed(() => reports.value.filter(r => r.waste_category.toLowerCase().includes('b3')).length);
+
+                onMounted(async () => {
+                    await fetchReports();
+                    initChart();
+                });
+
+                async function fetchReports() {
+                    try {
+                        const res = await fetch('/api/reports');
+                        if (res.status === 401) { window.location.href = '/login'; return; }
+                        reports.value = await res.json();
+                    } catch (e) { console.error(e); }
+                }
+
+                function initChart() {
+                    const ctx = document.getElementById('wasteChart');
+                    if (!ctx) return;
+
+                    chartInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Organik', 'Anorganik', 'B3'],
+                            datasets: [{
+                                data: [cntOrganic.value, cntInorganic.value, cntB3.value],
+                                backgroundColor: ['#22c55e', '#eab308', '#ef4444'],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+                    });
+                }
+
+                function badgeColor(cat) {
+                    cat = cat.toLowerCase();
+                    if (cat.includes('organik')) return 'bg-green-100 text-green-700';
+                    if (cat.includes('anorganik')) return 'bg-yellow-100 text-yellow-700';
+                    return 'bg-red-100 text-red-700';
+                }
+
+                function statusColor(s) {
+                    s = s?.toLowerCase() || '';
+                    if (s === 'selesai' || s === 'diterima') return 'bg-green-50 text-green-600 border-green-200';
+                    if (s === 'ditolak') return 'bg-red-50 text-red-600 border-red-200';
+                    return 'bg-slate-100 text-slate-600 border-slate-200';
+                }
+
+                function formatDate(str) {
+                    return new Date(str).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                }
+
+                function goToDetail(id) {
+                    window.location.href = '/admin/detail?id=' + id;
+                }
+
+                function logout() {
+                    document.cookie = 'session_token=; Max-Age=0; path=/';
+                    window.location.href = '/login';
+                }
+
+                return { reports, cntOrganic, cntInorganic, cntB3, badgeColor, statusColor, formatDate, goToDetail, logout };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

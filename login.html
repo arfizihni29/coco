@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #0f172a;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="w-full max-w-sm bg-slate-800 rounded-2xl p-8 shadow-2xl border border-slate-700">
+        <h1 class="text-2xl font-bold text-white text-center mb-2">Admin Panel</h1>
+        <p class="text-slate-400 text-center mb-6 text-sm">Please login to continue</p>
+
+        <form @submit.prevent="login" class="space-y-4">
+            <div>
+                <label class="text-slate-300 text-sm font-semibold">Username</label>
+                <input v-model="username" type="text"
+                    class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-green-500 outline-none">
+            </div>
+            <div>
+                <label class="text-slate-300 text-sm font-semibold">Password</label>
+                <input v-model="password" type="password"
+                    class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-green-500 outline-none">
+            </div>
+
+            <div v-if="error" class="text-red-500 text-sm text-center bg-red-500/10 py-2 rounded">{{ error }}</div>
+
+            <button type="submit" :disabled="loading"
+                class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg transition disabled:opacity-50">
+                {{ loading ? 'Checking...' : 'Login' }}
+            </button>
+        </form>
+    </div>
+
+    <script>
+        Vue.createApp({
+            setup() {
+                const username = Vue.ref('');
+                const password = Vue.ref('');
+                const loading = Vue.ref(false);
+                const error = Vue.ref('');
+
+                async function login() {
+                    loading.value = true;
+                    error.value = '';
+
+                    const formData = new URLSearchParams();
+                    formData.append('username', username.value);
+                    formData.append('password', password.value);
+
+                    try {
+                        const res = await fetch('/api/login', { method: 'POST', body: formData });
+                        if (res.ok) {
+                            window.location.href = '/admin'; // Redirect
+                        } else {
+                            error.value = 'Invalid username or password';
+                        }
+                    } catch (e) {
+                        error.value = 'Connection Error';
+                    } finally {
+                        loading.value = false;
+                    }
+                }
+
+                return { username, password, loading, error, login };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

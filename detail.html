@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail Laporan</title>
+    <!-- Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #f1f5f9;
+        }
+
+        .lightbox {
+            display: none;
+        }
+
+        .lightbox.active {
+            display: flex;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 min-h-screen">
+
+    <div id="app" class="min-h-screen flex flex-col">
+
+        <!-- Navbar -->
+        <nav class="bg-white shadow-sm px-6 py-4 flex justify-between items-center z-20 sticky top-0">
+            <a href="/admin" class="flex items-center gap-2 text-slate-700 hover:text-green-600 font-bold transition">
+                <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
+            </a>
+            <h1 class="font-bold text-slate-800 hidden md:block">Laporan #{{ report.id }}</h1>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- Left Column: Media (Image & Map) -->
+            <div class="space-y-6">
+                <!-- Image Card -->
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-200 group relative">
+                    <div class="aspect-[4/3] w-full bg-slate-100 relative cursor-zoom-in" @click="openLightbox">
+                        <img v-if="report.image_path" :src="report.image_path"
+                            class="w-full h-full object-cover transition duration-500 group-hover:scale-105">
+                        <div v-else class="flex items-center justify-center h-full text-slate-300"><i
+                                class="fas fa-image text-5xl"></i></div>
+
+                        <!-- Hover Overlay -->
+                        <div
+                            class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <span class="bg-white/90 backdrop-blur px-4 py-2 rounded-full font-bold text-sm shadow-lg">
+                                <i class="fas fa-search-plus"></i> Perbesar Gambar
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map Card -->
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-200 p-1">
+                    <div class="p-4 pb-2 flex justify-between items-center">
+                        <h3 class="font-bold text-slate-700"><i
+                                class="fas fa-map-marker-alt text-red-500 mr-2"></i>Lokasi</h3>
+                        <a :href="'https://www.google.com/maps?q=' + report.latitude + ',' + report.longitude"
+                            target="_blank" class="text-xs font-bold text-blue-600 hover:underline">Buka GMap <i
+                                class="fas fa-external-link-alt"></i></a>
+                    </div>
+                    <div id="map" class="w-full h-64 rounded-xl z-0"></div>
+                </div>
+            </div>
+
+            <!-- Right Column: Details & Actions -->
+            <div class="space-y-6">
+
+                <!-- Info Section -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+
+                    <!-- Title & Date -->
+                    <div class="mb-6 border-b border-slate-100 pb-6">
+                        <div class="flex items-center gap-3 mb-3">
+                            <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border"
+                                :class="badgeColor(report.waste_category)">
+                                {{ report.waste_category }}
+                            </span>
+                            <span class="text-slate-400 text-sm font-medium">{{ formatDate(report.created_at) }}</span>
+                        </div>
+                        <h2 class="text-3xl font-bold text-slate-800 leading-tight mb-2">{{ report.waste_detail }}</h2>
+                        <p class="text-slate-500">ID Laporan: <span class="font-mono bg-slate-100 px-2 rounded">#{{
+                                report.id }}</span></p>
+                    </div>
+
+                    <!-- Reporter Info -->
+                    <div class="mb-8">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 block">Informasi
+                            Pelapor</label>
+                        <div class="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div
+                                class="w-12 h-12 bg-white border border-slate-200 rounded-full flex items-center justify-center font-bold text-slate-400 text-xl shadow-sm">
+                                {{ report.reporter_name ? report.reporter_name.charAt(0) : '?' }}
+                            </div>
+                            <div class="flex-1">
+                                <div class="font-bold text-slate-800 text-lg">{{ report.reporter_name }}</div>
+                                <div class="text-slate-500 font-mono text-sm">{{ report.whatsapp }}</div>
+                            </div>
+                            <a :href="waLink" target="_blank"
+                                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-lg shadow-green-200 transition flex items-center gap-2">
+                                <i class="fab fa-whatsapp text-lg"></i> Chat
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Action Section -->
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 block">Update
+                            Status</label>
+                        <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                            <div class="flex flex-col md:flex-row gap-4 items-center">
+                                <div class="relative w-full">
+                                    <select v-model="report.status"
+                                        class="w-full appearance-none bg-white border-2 border-indigo-100 text-indigo-900 font-bold py-3 px-4 pr-10 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+                                        <option value="New">New</option>
+                                        <option value="Proses">Sedang Diproses</option>
+                                        <option value="Selesai">Selesai Dikerjakan</option>
+                                        <option value="Ditolak">Laporan Ditolak</option>
+                                    </select>
+                                    <div
+                                        class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-400">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                                <button @click="updateStatus"
+                                    class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-indigo-200 transition transform active:scale-95 whitespace-nowrap">
+                                    Simpan Status
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- Lightbox Modal -->
+        <div class="lightbox fixed inset-0 z-50 bg-black/95 items-center justify-center p-4 backdrop-blur-sm"
+            :class="{ 'active': showLightbox }" @click="showLightbox = false">
+            <img :src="report.image_path"
+                class="max-w-full max-h-[90vh] object-contain rounded shadow-2xl scale-100 transition duration-300"
+                @click.stop>
+            <button class="absolute top-6 right-6 text-white/50 hover:text-white text-4xl"
+                @click="showLightbox = false">&times;</button>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const report = ref({});
+                const showLightbox = ref(false);
+                const waLink = computed(() => {
+                    let num = report.value.whatsapp || '';
+                    if (num.startsWith('0')) num = '62' + num.slice(1);
+                    return `https://wa.me/${num}?text=Halo ${report.value.reporter_name}, laporan sampah Anda tentang "${report.value.waste_detail}" sedang kami proses.`;
+                });
+
+                let map;
+
+                onMounted(async () => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const id = urlParams.get('id');
+                    if (!id) { window.location.href = '/admin'; return; }
+
+                    try {
+                        const res = await fetch('/api/reporthandler?id=' + id);
+                        if (res.status === 401) { window.location.href = '/login'; return; }
+                        report.value = await res.json();
+                        setTimeout(() => initMap(report.value.latitude, report.value.longitude), 100);
+                    } catch (e) { console.error(e); }
+                });
+
+                function initMap(lat, lng) {
+                    map = L.map('map', { zoomControl: false }).setView([lat, lng], 16);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    L.marker([lat, lng]).addTo(map);
+                }
+
+                function openLightbox() { showLightbox.value = true; }
+
+                async function updateStatus() {
+                    const formData = new FormData();
+                    formData.append('id', report.value.id);
+                    formData.append('status', report.value.status);
+                    await fetch('/api/status', { method: 'POST', body: formData });
+                    Swal.fire({ icon: 'success', title: 'Status Disimpan', timer: 1500, showConfirmButton: false });
+                }
+
+                function badgeColor(cat) {
+                    cat = (cat || '').toLowerCase();
+                    if (cat.includes('organik')) return 'bg-green-100 text-green-700 border-green-200';
+                    if (cat.includes('anorganik')) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+                    return 'bg-red-100 text-red-700 border-red-200';
+                }
+
+                function formatDate(str) {
+                    if (!str) return '';
+                    return new Date(str).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+
+                return { report, waLink, updateStatus, badgeColor, formatDate, showLightbox, openLightbox };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

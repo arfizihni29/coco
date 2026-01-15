@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <meta name="theme-color" content="#10b981">
+    <title>WasteReport App</title>
+    <!-- Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .tab-enter-active,
+        .tab-leave-active {
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .tab-enter-from {
+            opacity: 0;
+            transform: translateX(10px);
+        }
+
+        .tab-leave-to {
+            opacity: 0;
+            transform: translateX(-10px);
+        }
+
+        /* Hide Scrollbar */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+
+        .pb-safe {
+            padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
+
+    <div id="app" class="flex-1 flex flex-col h-full relative">
+
+        <!-- App Header (Fixed) -->
+        <header class="bg-white px-6 py-4 shadow-sm z-20 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="bg-emerald-500 w-8 h-8 rounded-lg flex items-center justify-center text-white">
+                    <i class="fas fa-leaf"></i>
+                </div>
+                <h1 class="font-bold text-lg text-slate-800 tracking-tight">Waste<span
+                        class="text-emerald-500">Lens</span></h1>
+            </div>
+            <div
+                class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold">
+                {{ userInitials }}
+            </div>
+        </header>
+
+        <!-- Main Content (Scrollable) -->
+        <main class="flex-1 overflow-y-auto pb-safe relative bg-slate-50">
+
+            <transition name="tab" mode="out-in">
+
+                <!-- TAB 1: SCAN (HOME) -->
+                <div v-if="activeTab === 'scan'" key="scan"
+                    class="p-6 max-w-lg mx-auto min-h-full flex flex-col justify-center">
+
+                    <div v-if="!previewImage" class="text-center space-y-8 animate-fade-in-up">
+                        <div class="space-y-2">
+                            <h2 class="text-3xl font-bold text-slate-900">Mulai Lapor</h2>
+                            <p class="text-slate-500">Foto sampahmu, biar AI yang deteksi.</p>
+                        </div>
+
+                        <div class="relative group cursor-pointer" @click="$refs.fileInput.click()">
+                            <div
+                                class="absolute inset-0 bg-emerald-500 rounded-full blur-xl opacity-20 group-hover:opacity-40 transition duration-500">
+                            </div>
+                            <div
+                                class="relative bg-white w-48 h-48 mx-auto rounded-full shadow-2xl flex items-center justify-center border-4 border-emerald-50 group-hover:scale-105 transition transform duration-300">
+                                <div class="text-center">
+                                    <i class="fas fa-camera text-4xl text-emerald-500 mb-2"></i>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Tap Camera</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*"
+                            capture="environment" class="hidden">
+
+                        <!-- Recent Activity Teaser -->
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4 text-left cursor-pointer"
+                            @click="activeTab = 'history'">
+                            <div
+                                class="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center text-blue-600">
+                                <i class="fas fa-history"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-sm">Riwayat Laporan</h4>
+                                <p class="text-xs text-slate-400">Cek status laporanmu di sini</p>
+                            </div>
+                            <i class="fas fa-chevron-right text-slate-300"></i>
+                        </div>
+                    </div>
+
+                    <!-- FORM (After Image) -->
+                    <div v-else class="space-y-6 animate-fade-in pb-10">
+                        <!-- Image Preview & AI Result -->
+                        <div class="relative rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-white">
+                            <img :src="previewImage" class="w-full h-64 object-cover">
+                            <button @click="resetForm"
+                                class="absolute top-2 right-2 bg-black/50 text-white w-8 h-8 rounded-full ml-auto backdrop-blur flex items-center justify-center"><i
+                                    class="fas fa-times"></i></button>
+
+                            <!-- Analyzing State -->
+                            <div v-if="isAnalyzing"
+                                class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                                <div class="animate-spin text-emerald-500 text-3xl mb-2"><i
+                                        class="fas fa-circle-notch"></i></div>
+                                <p class="text-xs font-bold text-emerald-700 animate-pulse">SEARCHING DATABASE...</p>
+                            </div>
+
+                            <!-- Result -->
+                            <div v-if="aiResult.category"
+                                class="p-4 bg-white/95 backdrop-blur border-t border-slate-100">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <span
+                                            class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Terdeteksi
+                                            Sebagai</span>
+                                        <h3 class="text-xl font-bold text-slate-800">{{ aiResult.category }}</h3>
+                                    </div>
+                                    <span class="bg-emerald-100 text-emerald-700 p-2 rounded-lg text-lg">✨</span>
+                                </div>
+                                <p class="text-sm text-slate-600 mt-1">{{ aiResult.detail }}</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <!-- Inputs -->
+                            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase ml-1">Nama</label>
+                                    <input v-model="form.name" type="text"
+                                        class="w-full bg-slate-50 border-none rounded-xl p-3 font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        placeholder="Isi nama Anda">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
+                                    <input v-model="form.whatsapp" type="tel"
+                                        class="w-full bg-slate-50 border-none rounded-xl p-3 font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        placeholder="Contoh: 0812...">
+                                </div>
+                                <div>
+                                    <label
+                                        class="text-xs font-bold text-slate-400 uppercase ml-1 flex justify-between">Lokasi
+                                        <span class="text-emerald-500" v-if="form.lat">GPS OK</span></label>
+                                    <div id="map" class="h-32 rounded-xl bg-slate-200 mt-1"></div>
+                                </div>
+                            </div>
+
+                            <button @click="submitReport" :disabled="isSubmitting"
+                                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 active:scale-95 transition flex justify-center items-center gap-2">
+                                <span v-if="isSubmitting" class="animate-spin"><i
+                                        class="fas fa-circle-notch"></i></span>
+                                <span v-else>Kirim Laporan <i class="fas fa-paper-plane ml-1"></i></span>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- TAB 2: RIWAYAT (HISTORY) -->
+                <div v-if="activeTab === 'history'" key="history" class="p-6 max-w-lg mx-auto min-h-full">
+                    <h2 class="text-2xl font-bold text-slate-900 mb-6 sticky top-0 bg-slate-50 z-10 py-2">Riwayat
+                        Laporan</h2>
+
+                    <div v-if="!userWA" class="text-center py-20">
+                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                            <input v-model="inputWA" type="tel" placeholder="Nomor WA Anda"
+                                class="w-full text-center text-xl font-bold p-4 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-emerald-500 outline-none mb-4">
+                            <button @click="fetchHistory"
+                                class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl">Masuk</button>
+                            <p class="text-xs text-slate-400 mt-4">Masukkan nomor WA yang digunakan saat melapor.</p>
+                        </div>
+                    </div>
+
+                    <div v-else>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-xs font-bold text-slate-400 bg-white px-3 py-1 rounded-full border">WA: {{
+                                userWA }}</span>
+                            <button @click="logoutUser" class="text-xs text-red-500 font-bold p-2">Keluar</button>
+                        </div>
+
+                        <div class="space-y-3 pb-20">
+                            <div v-if="history.length === 0" class="text-center py-10 text-slate-400">
+                                <i class="far fa-folder-open text-3xl mb-2"></i>
+                                <p class="text-sm">Belum ada riwayat</p>
+                            </div>
+                            <!-- History Item -->
+                            <div v-for="h in history" :key="h.id"
+                                class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4">
+                                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold"
+                                    :class="iconClass(h.category)">
+                                    <i :class="iconMap(h.category)"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between items-start mb-1">
+                                        <h4 class="font-bold text-slate-800 text-sm">{{ h.category }}</h4>
+                                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border"
+                                            :class="statusClass(h.status)">{{ h.status }}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mb-2 line-clamp-1">{{ h.detail }}</p>
+                                    <p class="text-[10px] text-slate-400">{{ formatDate(h.created_at) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: INFO -->
+                <div v-if="activeTab === 'info'" key="info" class="p-6 max-w-lg mx-auto min-h-full">
+                    <h2 class="text-2xl font-bold text-slate-900 mb-6">Panduan</h2>
+                    <div class="space-y-6 pb-20">
+                        <div
+                            class="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl p-6 text-white shadow-lg">
+                            <h3 class="font-bold text-lg mb-2">Kenapa harus pilah sampah?</h3>
+                            <p class="text-sm opacity-90 leading-relaxed">Memilah sampah membantu proses daur ulang dan
+                                mencegah pencemaran lingkungan berbahaya.</p>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2"><i
+                                    class="fas fa-leaf text-green-500"></i> Organik</h4>
+                            <p class="text-sm text-slate-600 text-justify">Sampah yang mudah terurai seperti sisa
+                                makanan, kulit buah, dan dedaunan.</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2"><i
+                                    class="fas fa-wine-bottle text-yellow-500"></i> Anorganik</h4>
+                            <p class="text-sm text-slate-600 text-justify">Sampah sulit terurai seperti plastik, kaleng,
+                                kaca, dan kertas. Bisa didaur ulang.</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2"><i
+                                    class="fas fa-biohazard text-red-500"></i> B3 (Bahaya)</h4>
+                            <p class="text-sm text-slate-600 text-justify">Bahan Berbahaya & Beracun seperti baterai
+                                bekas, limbah medis, dan bahan kimia.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </transition>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav
+            class="bg-white border-t border-slate-200 px-6 py-2 pb-safe z-30 flex justify-between items-center text-xs font-medium text-slate-400">
+            <button @click="activeTab = 'scan'" class="flex-1 flex flex-col items-center gap-1 p-2 transition"
+                :class="activeTab === 'scan' ? 'text-emerald-600 scale-105' : 'hover:text-slate-600'">
+                <i class="fas fa-camera text-xl mb-0.5"></i>
+                <span>Scan</span>
+            </button>
+            <button @click="activeTab = 'history'" class="flex-1 flex flex-col items-center gap-1 p-2 transition"
+                :class="activeTab === 'history' ? 'text-blue-600 scale-105' : 'hover:text-slate-600'">
+                <i class="fas fa-history text-xl mb-0.5"></i>
+                <span>Riwayat</span>
+            </button>
+            <button @click="activeTab = 'info'" class="flex-1 flex flex-col items-center gap-1 p-2 transition"
+                :class="activeTab === 'info' ? 'text-orange-500 scale-105' : 'hover:text-slate-600'">
+                <i class="fas fa-book-open text-xl mb-0.5"></i>
+                <span>Panduan</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, watch, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const activeTab = ref('scan');
+
+                // Form Data
+                const form = ref({ name: '', whatsapp: '', image: null, lat: 0, lng: 0 });
+                const aiResult = ref({});
+                const previewImage = ref(null);
+                const isAnalyzing = ref(false);
+                const isSubmitting = ref(false);
+
+                // History Data
+                const userWA = ref(localStorage.getItem('userWA') || '');
+                const inputWA = ref('');
+                const history = ref([]);
+
+                // Computed
+                const userInitials = computed(() => form.value.name ? form.value.name.substring(0, 2).toUpperCase() : 'Guest');
+
+                // Map logic
+                let map;
+
+                watch(activeTab, (newTab) => {
+                    if (newTab === 'history' && userWA.value) fetchHistory();
+                });
+
+                function handleFileChange(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    form.value.image = file;
+                    previewImage.value = URL.createObjectURL(file);
+                    analyzeImage(file);
+                    setTimeout(initMap, 500); // Delay for transition
+                }
+
+                function initMap() {
+                    const el = document.getElementById('map');
+                    if (!el || map) return;
+                    map = L.map('map').setView([-6.2088, 106.8456], 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(pos => {
+                            const { latitude, longitude } = pos.coords;
+                            form.value.lat = latitude;
+                            form.value.lng = longitude;
+                            map.setView([latitude, longitude], 15);
+                            L.marker([latitude, longitude], { draggable: true }).addTo(map)
+                                .on('dragend', e => {
+                                    const p = e.target.getLatLng();
+                                    form.value.lat = p.lat;
+                                    form.value.lng = p.lng;
+                                });
+                        });
+                    }
+                }
+
+                async function analyzeImage(file) {
+                    isAnalyzing.value = true;
+                    const formData = new FormData();
+                    formData.append('image', file);
+                    try {
+                        const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+                        const data = await res.json();
+                        if (data.status === 'success') aiResult.value = data;
+                    } catch (e) { }
+                    finally { isAnalyzing.value = false; }
+                }
+
+                async function submitReport() {
+                    if (!form.value.name || !form.value.whatsapp) { Swal.fire('Ops', 'Data diri belum lengkap', 'warning'); return; }
+
+                    isSubmitting.value = true;
+                    localStorage.setItem('userWA', form.value.whatsapp);
+                    userWA.value = form.value.whatsapp;
+
+                    const formData = new FormData();
+                    formData.append('name', form.value.name);
+                    formData.append('whatsapp', form.value.whatsapp);
+                    formData.append('latitude', form.value.lat);
+                    formData.append('longitude', form.value.lng);
+                    formData.append('category', aiResult.value.category || 'Manual');
+                    formData.append('detail', aiResult.value.detail || '-');
+                    formData.append('image', form.value.image);
+
+                    try {
+                        const res = await fetch('/api/report', { method: 'POST', body: formData });
+                        if (res.ok) {
+                            Swal.fire({ icon: 'success', title: 'Terkirim!', timer: 1500, showConfirmButton: false });
+                            resetForm();
+                            activeTab.value = 'history'; // Auto switch to history
+                        }
+                    } catch (e) { Swal.fire('Error', 'Gagal kirim', 'error'); }
+                    finally { isSubmitting.value = false; }
+                }
+
+                function resetForm() {
+                    previewImage.value = null;
+                    form.value.image = null;
+                    aiResult.value = {};
+                    if (map) { map.remove(); map = null; }
+                }
+
+                async function fetchHistory() {
+                    const wa = inputWA.value || userWA.value;
+                    if (!wa) return;
+                    localStorage.setItem('userWA', wa);
+                    userWA.value = wa;
+                    try {
+                        const res = await fetch(`/api/user/reports?whatsapp=${wa}`);
+                        history.value = await res.json();
+                    } catch (e) { }
+                }
+
+                function logoutUser() {
+                    localStorage.removeItem('userWA');
+                    userWA.value = '';
+                    inputWA.value = '';
+                    history.value = [];
+                }
+
+                // Helper Styles
+                function iconClass(cat) {
+                    cat = (cat || '').toLowerCase();
+                    if (cat.includes('organik')) return 'bg-green-100 text-green-600';
+                    if (cat.includes('anorganik')) return 'bg-yellow-100 text-yellow-600';
+                    return 'bg-red-100 text-red-600';
+                }
+                function iconMap(cat) {
+                    cat = (cat || '').toLowerCase();
+                    if (cat.includes('organik')) return 'fas fa-leaf';
+                    if (cat.includes('anorganik')) return 'fas fa-wine-bottle';
+                    return 'fas fa-biohazard';
+                }
+                function statusClass(s) {
+                    s = (s || '').toLowerCase();
+                    if (s === 'selesai') return 'bg-green-50 text-green-600 border-green-200';
+                    if (s === 'proses') return 'bg-blue-50 text-blue-600 border-blue-200';
+                    if (s === 'ditolak') return 'bg-red-50 text-red-600 border-red-200';
+                    return 'bg-slate-100 text-slate-500 border-slate-200';
+                }
+                function formatDate(str) { return new Date(str).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+
+                return {
+                    activeTab, form, previewImage, aiResult, isAnalyzing, isSubmitting, userInitials,
+                    userWA, inputWA, history,
+                    handleFileChange, resetForm, submitReport, fetchHistory, logoutUser,
+                    iconClass, iconMap, statusClass, formatDate
+                };
+            }
+        }).mount('#app');
+
+        // Service Worker Registration for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(reg => {
+                    console.log('SW registred:', reg);
+                }).catch(err => console.log('SW fail:', err));
+            });
+        }
+    </script>
+    <style>
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .animate-fade-in-up {
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</body>
+
+</html>

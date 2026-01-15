@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Go CRUD</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { text-align: center; }
+        .form-group { display: flex; gap: 10px; margin-bottom: 2rem; }
+        input { flex: 1; padding: 10px; font-size: 16px; }
+        button { padding: 10px 20px; cursor: pointer; }
+        ul { list-style: none; padding: 0; }
+        li { background: #f4f4f4; margin-bottom: 10px; padding: 10px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
+        .actions button { margin-left: 5px; padding: 5px 10px; font-size: 14px; }
+        .done { text-decoration: line-through; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>My Tasks</h1>
+    
+    <div class="form-group">
+        <input type="text" id="taskTitle" placeholder="Task baru...">
+        <button onclick="addTask()">Tambah</button>
+    </div>
+
+    <ul id="taskList"></ul>
+
+    <script>
+        const API_URL = 'http://localhost:8080/tasks';
+
+        async function fetchTasks() {
+            const res = await fetch(API_URL);
+            const tasks = await res.json();
+            const list = document.getElementById('taskList');
+            list.innerHTML = '';
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="${task.status === 'done' ? 'done' : ''}">${task.title}</span>
+                    <div class="actions">
+                        <button onclick="toggleStatus(${task.id}, '${task.title}', '${task.status}')">
+                            ${task.status === 'done' ? 'Undo' : 'Done'}
+                        </button>
+                        <button onclick="deleteTask(${task.id})" style="color:red;">Hapus</button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        async function addTask() {
+            const input = document.getElementById('taskTitle');
+            const title = input.value.trim();
+            if (!title) return;
+
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, status: 'pending' })
+            });
+            input.value = '';
+            fetchTasks();
+        }
+
+        async function toggleStatus(id, title, currentStatus) {
+            const newStatus = currentStatus === 'done' ? 'pending' : 'done';
+            await fetch(`${API_URL}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, status: newStatus })
+            });
+            fetchTasks();
+        }
+
+        async function deleteTask(id) {
+            if (!confirm('Yakin hapus?')) return;
+            await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            fetchTasks();
+        }
+
+        fetchTasks();
+    </script>
+</body>
+</html>
